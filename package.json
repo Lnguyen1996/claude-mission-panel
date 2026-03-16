@@ -2,6 +2,8 @@
   "name": "claude-mission-panel",
   "version": "0.1.0",
   "description": "JARVIS-style AI assistant overlay powered by Claude",
+  "author": "Lam Nguyen",
+  "license": "MIT",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

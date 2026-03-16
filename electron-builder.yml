@@ -1,9 +1,85 @@
 appId: com.lamnguyen.claude-mission-panel
 productName: Claude Mission Panel
+copyright: Copyright (c) 2026 Lam Nguyen
+
 directories:
+  buildResources: assets
   output: release
+
+files:
+  - out/**/*
+  - assets/**/*
+  - "!node_modules/@anthropic-ai/claude-agent-sdk/**/*"
+  - "!node_modules/zod/**/*"
+
+# Include native modules that need to be rebuilt for Electron
+npmRebuild: true
+
+asar: true
+asarUnpack:
+  - "node_modules/@nut-tree-fork/**/*"
+  - "node_modules/screenshot-desktop/**/*"
+  - "node_modules/whisper-node/**/*"
+
+# macOS configuration
 mac:
-  target: dmg
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  icon: assets/icon.icns
   category: public.app-category.utilities
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: "Claude Mission Panel needs microphone access for voice commands and speech-to-text input."
+    NSAppleEventsUsageDescription: "Claude Mission Panel needs Apple Events access to control applications on your behalf."
+    NSAccessibilityUsageDescription: "Claude Mission Panel needs Accessibility access to control mouse, keyboard, and read screen contents."
+    NSSpeechRecognitionUsageDescription: "Claude Mission Panel uses speech recognition to transcribe voice commands."
+    NSScreenCaptureUsageDescription: "Claude Mission Panel needs screen capture access to take screenshots for AI-assisted screen control."
+
+dmg:
+  artifactName: "${name}-${version}-${arch}.dmg"
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# Windows configuration
 win:
-  target: nsis
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: assets/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  artifactName: "${name}-${version}-setup.exe"
+
+# Linux configuration (bonus)
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  icon: assets/icon.png
+  category: Utility
+  maintainer: Lam Nguyen
+  description: JARVIS-style AI assistant overlay powered by Claude
