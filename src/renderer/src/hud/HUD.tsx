@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { PromptBar } from "./PromptBar";
 import { StatusPill } from "./StatusPill";
+import { AnnotationLayer } from "../canvas/AnnotationLayer";
 import "../styles/hud.css";
 
 export function HUD() {
@@ -31,6 +32,7 @@ export function HUD() {
 
   return (
     <>
+      <AnnotationLayer />
       <StatusPill />
       <PromptBar
         visible={promptVisible}
