@@ -1,0 +1,9 @@
+appId: com.lamnguyen.claude-mission-panel
+productName: Claude Mission Panel
+directories:
+  output: release
+mac:
+  target: dmg
+  category: public.app-category.utilities
+win:
+  target: nsis
