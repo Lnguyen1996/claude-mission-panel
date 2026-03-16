@@ -2,7 +2,7 @@
   "name": "claude-mission-panel",
   "version": "0.1.0",
   "description": "JARVIS-style AI assistant overlay powered by Claude",
-  "main": "dist/main/index.js",
+  "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
