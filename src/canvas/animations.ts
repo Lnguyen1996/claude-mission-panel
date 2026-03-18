@@ -28,7 +28,6 @@ export function drawPulsingCircle(
 
   ctx.save();
 
-  // Outer glow
   ctx.beginPath();
   ctx.arc(x, y, radius * pulseScale * 1.6, 0, Math.PI * 2);
   ctx.strokeStyle = color;
@@ -36,7 +35,6 @@ export function drawPulsingCircle(
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Main circle
   ctx.beginPath();
   ctx.arc(x, y, radius * pulseScale, 0, Math.PI * 2);
   ctx.strokeStyle = color;
@@ -44,7 +42,6 @@ export function drawPulsingCircle(
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Center dot
   ctx.beginPath();
   ctx.arc(x, y, 4, 0, Math.PI * 2);
   ctx.fillStyle = color;
@@ -71,13 +68,11 @@ export function drawArrow(
   ctx.lineWidth = 2.5;
   ctx.globalAlpha = 0.85;
 
-  // Line
   ctx.beginPath();
   ctx.moveTo(x1, y1);
   ctx.lineTo(x2, y2);
   ctx.stroke();
 
-  // Arrowhead
   ctx.beginPath();
   ctx.moveTo(x2, y2);
   ctx.lineTo(
@@ -129,7 +124,6 @@ export function drawLabel(
   const bgWidth = metrics.width + padding * 2;
   const bgHeight = 28;
 
-  // Background
   ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
   ctx.globalAlpha = 0.9;
   const cornerRadius = 6;
@@ -137,7 +131,6 @@ export function drawLabel(
   ctx.roundRect(x - bgWidth / 2, y - bgHeight / 2, bgWidth, bgHeight, cornerRadius);
   ctx.fill();
 
-  // Border
   ctx.strokeStyle = color;
   ctx.globalAlpha = 0.6;
   ctx.lineWidth = 1;
@@ -145,7 +138,6 @@ export function drawLabel(
   ctx.roundRect(x - bgWidth / 2, y - bgHeight / 2, bgWidth, bgHeight, cornerRadius);
   ctx.stroke();
 
-  // Text
   ctx.fillStyle = "#ffffff";
   ctx.globalAlpha = 1;
   ctx.textAlign = "center";

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
 
 interface StatusData {
   state: "idle" | "thinking" | "executing" | "error";
@@ -9,9 +10,10 @@ export function StatusPill() {
   const [status, setStatus] = useState<StatusData>({ state: "idle", text: "Ready" });
 
   useEffect(() => {
-    window.api.onStatus((data: StatusData) => {
-      setStatus(data);
+    const unlisten = listen<StatusData>("status", (event) => {
+      setStatus(event.payload);
     });
+    return () => { unlisten.then((fn) => fn()); };
   }, []);
 
   return (

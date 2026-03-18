@@ -1,0 +1,30 @@
+{
+  "productName": "Claude Mission Panel",
+  "version": "0.1.0",
+  "identifier": "com.lamnguyen.claude-mission-panel",
+  "build": {
+    "beforeDevCommand": "npx vite",
+    "beforeBuildCommand": "npx vite build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "overlay",
+        "title": "Claude Mission Panel",
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "fullscreen": false,
+        "maximized": true,
+        "resizable": false,
+        "focus": false
+      }
+    ]
+  },
+  "plugins": {}
+}

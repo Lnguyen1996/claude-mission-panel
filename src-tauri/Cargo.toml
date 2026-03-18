@@ -1,0 +1,27 @@
+[package]
+name = "claude-mission-panel"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+xcap = "0.3"
+enigo = "0.3"
+axum = "0.8"
+tower-http = { version = "0.6", features = ["cors"] }
+base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }
+image = "0.25"
+lazy_static = "1"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

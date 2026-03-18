@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { PromptBar } from "./PromptBar";
 import { StatusPill } from "./StatusPill";
 import { AnnotationLayer } from "../canvas/AnnotationLayer";
@@ -10,35 +12,30 @@ export function HUD() {
   const togglePrompt = useCallback(() => {
     setPromptVisible((prev) => {
       const next = !prev;
-      window.api.setClickThrough(!next);
+      invoke("set_click_through", { enabled: !next });
       return next;
     });
   }, []);
 
   const hidePrompt = useCallback(() => {
     setPromptVisible(false);
-    window.api.setClickThrough(true);
+    invoke("set_click_through", { enabled: true });
   }, []);
 
   useEffect(() => {
-    window.api.onTogglePrompt(() => {
-      togglePrompt();
-    });
+    const unlisten = listen("toggle-prompt", () => togglePrompt());
+    return () => { unlisten.then((fn) => fn()); };
   }, [togglePrompt]);
 
   const handleSubmit = (text: string) => {
-    window.api.sendPrompt(text);
+    invoke("handle_prompt", { text });
   };
 
   return (
     <>
       <AnnotationLayer />
       <StatusPill />
-      <PromptBar
-        visible={promptVisible}
-        onSubmit={handleSubmit}
-        onClose={hidePrompt}
-      />
+      <PromptBar visible={promptVisible} onSubmit={handleSubmit} onClose={hidePrompt} />
     </>
   );
 }

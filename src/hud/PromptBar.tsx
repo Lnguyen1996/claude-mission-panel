@@ -1,17 +1,5 @@
-import React, { useRef, useEffect } from "react";
-
-declare global {
-  interface Window {
-    api: {
-      onAnnotation: (cb: (data: any) => void) => void;
-      onStatus: (cb: (data: any) => void) => void;
-      onSpeak: (cb: (data: any) => void) => void;
-      onTogglePrompt: (cb: () => void) => void;
-      sendPrompt: (text: string) => void;
-      setClickThrough: (enabled: boolean) => void;
-    };
-  }
-}
+import { useRef, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 
 interface PromptBarProps {
   visible: boolean;
@@ -23,9 +11,7 @@ export function PromptBar({ visible, onSubmit, onClose }: PromptBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (visible && inputRef.current) {
-      inputRef.current.focus();
-    }
+    if (visible && inputRef.current) inputRef.current.focus();
   }, [visible]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -40,15 +26,8 @@ export function PromptBar({ visible, onSubmit, onClose }: PromptBarProps) {
     }
   };
 
-  const handleMouseEnter = () => {
-    window.api.setClickThrough(false);
-  };
-
-  const handleMouseLeave = () => {
-    if (!visible) {
-      window.api.setClickThrough(true);
-    }
-  };
+  const handleMouseEnter = () => invoke("set_click_through", { enabled: false });
+  const handleMouseLeave = () => { if (!visible) invoke("set_click_through", { enabled: true }); };
 
   return (
     <div
@@ -57,12 +36,7 @@ export function PromptBar({ visible, onSubmit, onClose }: PromptBarProps) {
       onMouseLeave={handleMouseLeave}
     >
       <div className="hud-prompt-icon" />
-      <input
-        ref={inputRef}
-        type="text"
-        placeholder="Ask Claude anything..."
-        onKeyDown={handleKeyDown}
-      />
+      <input ref={inputRef} type="text" placeholder="Ask Claude anything..." onKeyDown={handleKeyDown} />
     </div>
   );
 }

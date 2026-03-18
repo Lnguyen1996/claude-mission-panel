@@ -1,0 +1,17 @@
+{
+  "identifier": "default",
+  "description": "Default capability for the overlay",
+  "windows": ["overlay"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-always-on-top",
+    "global-shortcut:default",
+    "shell:default",
+    "core:event:default",
+    "core:event:allow-emit",
+    "core:event:allow-listen"
+  ]
+}
