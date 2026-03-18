@@ -25,6 +25,18 @@ fn handle_prompt(text: String) {
     println!("[Prompt] {}", text);
 }
 
+#[tauri::command]
+fn quit_app(app_handle: tauri::AppHandle) {
+    println!("[MissionPanel] Quit requested via UI");
+    // Signal the MCP server to shut down gracefully first
+    mcp_server::signal_shutdown();
+    // Give the MCP server a moment to close, then exit
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        app_handle.exit(0);
+    });
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(
@@ -63,6 +75,7 @@ fn main() {
             set_click_through,
             take_screenshot,
             handle_prompt,
+            quit_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

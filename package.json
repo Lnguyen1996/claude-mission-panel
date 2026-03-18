@@ -10,24 +10,16 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "latest",
-    "@nut-tree-fork/nut-js": "^4.2.6",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-global-shortcut": "^2.3.1",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "screenshot-desktop": "^1.15.3",
-    "whisper-node": "^1.1.1",
-    "zod": "^4.0.0"
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",
-    "electron": "^33.0.0",
-    "electron-builder": "^25.0.0",
-    "electron-vite": "^3.0.0",
     "typescript": "^5.9.3",
     "vite": "^6.4.1"
   }

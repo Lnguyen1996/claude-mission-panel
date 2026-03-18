@@ -1,7 +1,8 @@
 use axum::{
     Router, Json,
-    routing::post,
+    routing::{post, get},
     extract::State,
+    response::IntoResponse,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9,12 +10,16 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tower_http::cors::CorsLayer;
 use uuid::Uuid;
+use tokio::sync::watch;
 
 use crate::{screenshot, input, command, tts, mcp_tools};
 
 struct McpState {
     app_handle: AppHandle,
 }
+
+/// Shutdown signal sender — stored globally so the app can trigger shutdown on close
+static SHUTDOWN_TX: std::sync::OnceLock<watch::Sender<bool>> = std::sync::OnceLock::new();
 
 #[derive(Deserialize)]
 struct JsonRpcRequest {
@@ -65,9 +70,45 @@ async fn handle_mcp(
         }
         "tools/call" => {
             let params = req.params.clone().unwrap_or_default();
-            let tool_name = params["name"].as_str().unwrap_or("");
+            let tool_name = params["name"].as_str().unwrap_or("").to_string();
             let args = params["arguments"].clone();
-            execute_tool(tool_name, &args, &state.app_handle).await
+
+            // Emit activity log: tool call started
+            let _ = state.app_handle.emit("activity-log", serde_json::json!({
+                "type": "tool_start",
+                "tool": tool_name,
+                "args": &args,
+                "timestamp": chrono_now(),
+            }));
+            let _ = state.app_handle.emit("status", serde_json::json!({
+                "state": "executing",
+                "text": format!("{}", tool_name)
+            }));
+
+            let result = execute_tool(&tool_name, &args, &state.app_handle).await;
+
+            // Emit activity log: tool call completed
+            let is_error = result.get("isError").and_then(|v| v.as_bool()).unwrap_or(false);
+            let result_text = result.get("content")
+                .and_then(|c| c.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|item| item.get("text"))
+                .and_then(|t| t.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let _ = state.app_handle.emit("activity-log", serde_json::json!({
+                "type": if is_error { "tool_error" } else { "tool_done" },
+                "tool": tool_name,
+                "result": if result_text.len() > 200 { format!("{}...", &result_text[..200]) } else { result_text },
+                "timestamp": chrono_now(),
+            }));
+            let _ = state.app_handle.emit("status", serde_json::json!({
+                "state": if is_error { "error" } else { "idle" },
+                "text": if is_error { format!("{} failed", tool_name) } else { "Ready".to_string() }
+            }));
+
+            result
         }
         "notifications/initialized" => {
             serde_json::json!({})
@@ -272,15 +313,75 @@ fn tool_error(msg: &str) -> Value {
     serde_json::json!({ "content": [{ "type": "text", "text": msg }], "isError": true })
 }
 
+/// Health check endpoint so clients can verify the server is alive
+async fn health_check() -> impl IntoResponse {
+    "ok"
+}
+
+/// Simple timestamp string (no chrono crate needed)
+fn chrono_now() -> String {
+    let duration = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = duration.as_secs();
+    // Return ISO-ish format: just the unix timestamp for simplicity
+    format!("{}", secs)
+}
+
+/// Signal the MCP server to shut down (called from Tauri on app close)
+pub fn signal_shutdown() {
+    if let Some(tx) = SHUTDOWN_TX.get() {
+        let _ = tx.send(true);
+        println!("[MCP] Shutdown signal sent");
+    }
+}
+
 pub async fn start(app_handle: AppHandle) {
     let state = Arc::new(McpState { app_handle });
 
     let app = Router::new()
         .route("/mcp", post(handle_mcp))
+        .route("/health", get(health_check))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:13456").await.unwrap();
+    // Create shutdown channel
+    let (tx, rx) = watch::channel(false);
+    let _ = SHUTDOWN_TX.set(tx);
+
+    // Retry binding with exponential backoff — handles port still in TIME_WAIT from previous run
+    let mut attempts = 0;
+    let listener = loop {
+        match tokio::net::TcpListener::bind("127.0.0.1:13456").await {
+            Ok(listener) => break listener,
+            Err(e) => {
+                attempts += 1;
+                if attempts > 10 {
+                    eprintln!("[MCP] Failed to bind port 13456 after 10 attempts: {}", e);
+                    return;
+                }
+                eprintln!("[MCP] Port 13456 busy (attempt {}), retrying in {}s... ({})", attempts, attempts, e);
+                tokio::time::sleep(std::time::Duration::from_secs(attempts)).await;
+            }
+        }
+    };
+
     println!("[MCP] Server listening on http://127.0.0.1:13456/mcp");
-    axum::serve(listener, app).await.unwrap();
+
+    // Serve with graceful shutdown
+    let mut shutdown_rx = rx.clone();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            // Wait until shutdown signal is sent
+            while !*shutdown_rx.borrow_and_update() {
+                if shutdown_rx.changed().await.is_err() {
+                    break;
+                }
+            }
+            println!("[MCP] Server shutting down gracefully");
+        })
+        .await
+        .unwrap_or_else(|e| eprintln!("[MCP] Server error: {}", e));
+
+    println!("[MCP] Server stopped");
 }

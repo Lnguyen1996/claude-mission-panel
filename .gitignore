@@ -1,6 +1,28 @@
+# Dependencies
 node_modules/
+
+# Build artifacts
 dist/
 out/
 release/
+
+# Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/
+
+# TypeScript
 *.tsbuildinfo
+
+# Logs
+*.log
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Electron backup (migrated to Tauri)
+src-electron-backup/
