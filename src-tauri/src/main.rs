@@ -7,7 +7,7 @@ mod tts;
 mod mcp_server;
 mod mcp_tools;
 
-use tauri::{Manager, Emitter};
+use tauri::{Manager, Emitter, PhysicalPosition};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 #[tauri::command]
@@ -50,8 +50,19 @@ fn main() {
         )
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let window = app.get_webview_window("overlay").unwrap();
-            let _ = window.set_ignore_cursor_events(true);
+            // Overlay window: fully click-through for annotations/grid
+            let overlay = app.get_webview_window("overlay").unwrap();
+            let _ = overlay.set_ignore_cursor_events(true);
+
+            // Pill window: always interactive (draggable, closable)
+            if let Some(pill) = app.get_webview_window("pill") {
+                // Position pill in the top-right of the primary monitor
+                if let Ok(Some(monitor)) = pill.primary_monitor() {
+                    let screen = monitor.size();
+                    let x = screen.width as i32 - 240;
+                    let _ = pill.set_position(PhysicalPosition::new(x, 20));
+                }
+            }
 
             // Register Ctrl+Shift+Space hotkey (non-fatal if already taken)
             let shortcut: Shortcut = "CmdOrCtrl+Shift+Space".parse().unwrap();

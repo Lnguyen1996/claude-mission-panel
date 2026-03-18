@@ -23,6 +23,19 @@
         "maximized": true,
         "resizable": false,
         "focus": false
+      },
+      {
+        "label": "pill",
+        "title": "Mission Panel Status",
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "width": 220,
+        "height": 50,
+        "resizable": false,
+        "focus": false
       }
     ]
   },

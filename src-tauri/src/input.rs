@@ -1,15 +1,91 @@
 use enigo::{Enigo, Mouse, Keyboard, Settings, Button, Coordinate, Direction, Key};
 use std::sync::Mutex;
 
+#[derive(serde::Serialize)]
+pub struct SmoothMoveResult {
+    pub final_x: i32,
+    pub final_y: i32,
+    pub target_x: i32,
+    pub target_y: i32,
+    pub deviation_px: f64,
+    pub steps_taken: u32,
+    pub corrected: bool,
+}
+
 lazy_static::lazy_static! {
     static ref ENIGO: Mutex<Enigo> = Mutex::new(
         Enigo::new(&Settings::default()).expect("Failed to create Enigo")
     );
 }
 
+/// Expose the enigo Mutex for direct access by servo_drag.
+pub fn enigo_lock() -> Result<std::sync::MutexGuard<'static, Enigo>, String> {
+    ENIGO.lock().map_err(|e| e.to_string())
+}
+
 pub fn mouse_move(x: i32, y: i32) -> Result<(), String> {
     let mut enigo = ENIGO.lock().map_err(|e| e.to_string())?;
     enigo.move_mouse(x, y, Coordinate::Abs).map_err(|e| format!("Move failed: {}", e))
+}
+
+pub fn get_cursor_position() -> Result<(i32, i32), String> {
+    let enigo = ENIGO.lock().map_err(|e| e.to_string())?;
+    let (x, y) = enigo.location().map_err(|e| format!("Failed to get cursor position: {}", e))?;
+    Ok((x, y))
+}
+
+pub fn mouse_move_smooth(
+    target_x: i32,
+    target_y: i32,
+    steps: u32,
+    duration_ms: u64,
+) -> Result<SmoothMoveResult, String> {
+    let step_delay = std::time::Duration::from_millis(duration_ms / steps as u64);
+    let deviation_threshold: f64 = 6.0;
+
+    let mut enigo = ENIGO.lock().map_err(|e| e.to_string())?;
+
+    let (start_x, start_y) = enigo.location()
+        .map_err(|e| format!("Failed to get cursor position: {}", e))?;
+
+    let mut corrected = false;
+
+    for i in 1..=steps {
+        let progress = i as f64 / steps as f64;
+        let expected_x = start_x as f64 + (target_x as f64 - start_x as f64) * progress;
+        let expected_y = start_y as f64 + (target_y as f64 - start_y as f64) * progress;
+
+        enigo.move_mouse(expected_x as i32, expected_y as i32, Coordinate::Abs)
+            .map_err(|e| format!("Move failed: {}", e))?;
+
+        std::thread::sleep(step_delay);
+
+        let (actual_x, actual_y) = enigo.location()
+            .map_err(|e| format!("Position check failed: {}", e))?;
+
+        let dx = (actual_x as f64 - expected_x).abs();
+        let dy = (actual_y as f64 - expected_y).abs();
+        let deviation = (dx * dx + dy * dy).sqrt();
+
+        if deviation > deviation_threshold && i < steps {
+            corrected = true;
+        }
+    }
+
+    let (final_x, final_y) = enigo.location()
+        .map_err(|e| format!("Final position check failed: {}", e))?;
+
+    let final_deviation = (((final_x - target_x) as f64).powi(2) + ((final_y - target_y) as f64).powi(2)).sqrt();
+
+    Ok(SmoothMoveResult {
+        final_x,
+        final_y,
+        target_x,
+        target_y,
+        deviation_px: final_deviation,
+        steps_taken: steps,
+        corrected,
+    })
 }
 
 pub fn mouse_click(x: i32, y: i32, button: &str) -> Result<(), String> {

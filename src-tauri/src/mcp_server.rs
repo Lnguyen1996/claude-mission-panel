@@ -12,6 +12,7 @@ use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 use tokio::sync::watch;
 
+use enigo::Mouse;
 use crate::{screenshot, input, command, tts, mcp_tools};
 
 struct McpState {
@@ -142,9 +143,30 @@ async fn execute_tool(name: &str, args: &Value, app_handle: &AppHandle) -> Value
 
     match name {
         "take_screenshot" => {
-            match screenshot::capture_screen() {
-                Ok(b64) => serde_json::json!({
-                    "content": [{ "type": "image", "data": b64, "mimeType": "image/png" }]
+            let format = args.get("format").and_then(|f| f.as_str()).unwrap_or("png");
+            let scale = args.get("scale").and_then(|s| s.as_f64()).unwrap_or(1.0) as f32;
+            let scale = scale.clamp(0.1, 1.0);
+
+            if format == "jpeg" {
+                match screenshot::capture_screen_jpeg(85, scale) {
+                    Ok((b64, mime)) => serde_json::json!({
+                        "content": [{ "type": "image", "data": b64, "mimeType": mime }]
+                    }),
+                    Err(e) => tool_error(&e),
+                }
+            } else {
+                match screenshot::capture_screen() {
+                    Ok(b64) => serde_json::json!({
+                        "content": [{ "type": "image", "data": b64, "mimeType": "image/png" }]
+                    }),
+                    Err(e) => tool_error(&e),
+                }
+            }
+        }
+        "take_screenshot_fast" => {
+            match screenshot::capture_screen_jpeg(70, 0.5) {
+                Ok((b64, mime)) => serde_json::json!({
+                    "content": [{ "type": "image", "data": b64, "mimeType": mime }]
                 }),
                 Err(e) => tool_error(&e),
             }
@@ -299,6 +321,180 @@ async fn execute_tool(name: &str, args: &Value, app_handle: &AppHandle) -> Value
             match input::mouse_click(enigo_x, enigo_y, "left") {
                 Ok(()) => tool_text(&format!("Clicked grid cell {} (row {}, col {}) at ({}, {})", cell, row, col, center_x, center_y)),
                 Err(e) => tool_error(&e),
+            }
+        }
+        "servo_move" => {
+            let raw_x = args["x"].as_i64().unwrap_or(0) as f64;
+            let raw_y = args["y"].as_i64().unwrap_or(0) as f64;
+            let target_x = (raw_x * dpi_scale) as i32;
+            let target_y = (raw_y * dpi_scale) as i32;
+            let steps = args.get("steps").and_then(|s| s.as_u64()).unwrap_or(15) as u32;
+            let steps = steps.clamp(5, 50);
+            let duration_ms = args.get("duration_ms").and_then(|d| d.as_u64()).unwrap_or(400);
+            let duration_ms = duration_ms.clamp(100, 5000);
+
+            let move_result = tokio::task::spawn_blocking(move || {
+                input::mouse_move_smooth(target_x, target_y, steps, duration_ms)
+            }).await;
+
+            match move_result {
+                Ok(Ok(result)) => {
+                    let ss_final_x = (result.final_x as f64 / dpi_scale) as i32;
+                    let ss_final_y = (result.final_y as f64 / dpi_scale) as i32;
+                    let screenshot_result = screenshot::capture_screen_jpeg(85, 1.0);
+
+                    let text_json = serde_json::json!({
+                        "final_x": ss_final_x,
+                        "final_y": ss_final_y,
+                        "target_x": raw_x as i32,
+                        "target_y": raw_y as i32,
+                        "deviation_px": result.deviation_px / dpi_scale,
+                        "steps_taken": result.steps_taken,
+                        "corrected": result.corrected
+                    });
+
+                    match screenshot_result {
+                        Ok((b64, mime)) => serde_json::json!({
+                            "content": [
+                                { "type": "text", "text": text_json.to_string() },
+                                { "type": "image", "data": b64, "mimeType": mime }
+                            ]
+                        }),
+                        Err(e) => serde_json::json!({
+                            "content": [
+                                { "type": "text", "text": text_json.to_string() },
+                                { "type": "text", "text": format!("Screenshot failed: {}", e) }
+                            ]
+                        }),
+                    }
+                }
+                Ok(Err(e)) => tool_error(&format!("Servo move failed: {}", e)),
+                Err(e) => tool_error(&format!("Servo task panicked: {}", e)),
+            }
+        }
+        "servo_click" => {
+            let raw_x = args["x"].as_i64().unwrap_or(0) as f64;
+            let raw_y = args["y"].as_i64().unwrap_or(0) as f64;
+            let target_x = (raw_x * dpi_scale) as i32;
+            let target_y = (raw_y * dpi_scale) as i32;
+            let button = args.get("button").and_then(|b| b.as_str()).unwrap_or("left").to_string();
+            let steps = args.get("steps").and_then(|s| s.as_u64()).unwrap_or(15) as u32;
+            let steps = steps.clamp(5, 50);
+            let duration_ms = args.get("duration_ms").and_then(|d| d.as_u64()).unwrap_or(400);
+            let duration_ms = duration_ms.clamp(100, 5000);
+
+            let click_result = tokio::task::spawn_blocking(move || {
+                let move_result = input::mouse_move_smooth(target_x, target_y, steps, duration_ms)?;
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                input::mouse_click(move_result.final_x, move_result.final_y, &button)?;
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                Ok::<_, String>(move_result)
+            }).await;
+
+            match click_result {
+                Ok(Ok(result)) => {
+                    let ss_final_x = (result.final_x as f64 / dpi_scale) as i32;
+                    let ss_final_y = (result.final_y as f64 / dpi_scale) as i32;
+                    let screenshot_result = screenshot::capture_screen_jpeg(85, 1.0);
+
+                    let text_json = serde_json::json!({
+                        "final_x": ss_final_x,
+                        "final_y": ss_final_y,
+                        "target_x": raw_x as i32,
+                        "target_y": raw_y as i32,
+                        "deviation_px": result.deviation_px / dpi_scale,
+                        "steps_taken": result.steps_taken,
+                        "corrected": result.corrected,
+                        "clicked": true
+                    });
+
+                    match screenshot_result {
+                        Ok((b64, mime)) => serde_json::json!({
+                            "content": [
+                                { "type": "text", "text": text_json.to_string() },
+                                { "type": "image", "data": b64, "mimeType": mime }
+                            ]
+                        }),
+                        Err(e) => serde_json::json!({
+                            "content": [
+                                { "type": "text", "text": text_json.to_string() },
+                                { "type": "text", "text": format!("Screenshot failed: {}", e) }
+                            ]
+                        }),
+                    }
+                }
+                Ok(Err(e)) => tool_error(&format!("Servo click failed: {}", e)),
+                Err(e) => tool_error(&format!("Servo task panicked: {}", e)),
+            }
+        }
+        "servo_drag" => {
+            let raw_x1 = args["x1"].as_i64().unwrap_or(0) as f64;
+            let raw_y1 = args["y1"].as_i64().unwrap_or(0) as f64;
+            let raw_x2 = args["x2"].as_i64().unwrap_or(0) as f64;
+            let raw_y2 = args["y2"].as_i64().unwrap_or(0) as f64;
+            let start_x = (raw_x1 * dpi_scale) as i32;
+            let start_y = (raw_y1 * dpi_scale) as i32;
+            let end_x = (raw_x2 * dpi_scale) as i32;
+            let end_y = (raw_y2 * dpi_scale) as i32;
+            let steps = args.get("steps").and_then(|s| s.as_u64()).unwrap_or(15) as u32;
+            let steps = steps.clamp(5, 50);
+            let duration_ms = args.get("duration_ms").and_then(|d| d.as_u64()).unwrap_or(400);
+            let duration_ms = duration_ms.clamp(100, 5000);
+
+            let drag_result = tokio::task::spawn_blocking(move || {
+                let start_result = input::mouse_move_smooth(start_x, start_y, steps, duration_ms)?;
+                {
+                    let mut enigo = input::enigo_lock()?;
+                    enigo.button(enigo::Button::Left, enigo::Direction::Press)
+                        .map_err(|e| format!("Press failed: {}", e))?;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                let end_result = input::mouse_move_smooth(end_x, end_y, steps, duration_ms)?;
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                {
+                    let mut enigo = input::enigo_lock()?;
+                    enigo.button(enigo::Button::Left, enigo::Direction::Release)
+                        .map_err(|e| format!("Release failed: {}", e))?;
+                }
+                Ok::<_, String>((start_result, end_result))
+            }).await;
+
+            match drag_result {
+                Ok(Ok((start_result, end_result))) => {
+                    let ss_start_x = (start_result.final_x as f64 / dpi_scale) as i32;
+                    let ss_start_y = (start_result.final_y as f64 / dpi_scale) as i32;
+                    let ss_end_x = (end_result.final_x as f64 / dpi_scale) as i32;
+                    let ss_end_y = (end_result.final_y as f64 / dpi_scale) as i32;
+                    let screenshot_result = screenshot::capture_screen_jpeg(85, 1.0);
+
+                    let text_json = serde_json::json!({
+                        "start_x": ss_start_x,
+                        "start_y": ss_start_y,
+                        "end_x": ss_end_x,
+                        "end_y": ss_end_y,
+                        "target_start": [raw_x1 as i32, raw_y1 as i32],
+                        "target_end": [raw_x2 as i32, raw_y2 as i32],
+                        "steps_taken": end_result.steps_taken,
+                        "corrected": start_result.corrected || end_result.corrected
+                    });
+
+                    match screenshot_result {
+                        Ok((b64, mime)) => serde_json::json!({
+                            "content": [
+                                { "type": "text", "text": text_json.to_string() },
+                                { "type": "image", "data": b64, "mimeType": mime }
+                            ]
+                        }),
+                        Err(e) => serde_json::json!({
+                            "content": [
+                                { "type": "text", "text": text_json.to_string() },
+                                { "type": "text", "text": format!("Screenshot failed: {}", e) }
+                            ]
+                        }),
+                    }
+                }
+                Ok(Err(e)) => tool_error(&format!("Servo drag failed: {}", e)),
+                Err(e) => tool_error(&format!("Servo task panicked: {}", e)),
             }
         }
         _ => tool_error(&format!("Unknown tool: {}", name)),

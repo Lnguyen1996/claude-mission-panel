@@ -12,7 +12,19 @@ pub fn get_tool_definitions() -> Vec<ToolDef> {
     vec![
         ToolDef {
             name: "take_screenshot".into(),
-            description: "Capture the entire screen as base64 PNG. Always call first to see what's on screen.".into(),
+            description: "Capture the entire screen. Default: PNG. Pass format:'jpeg' for 5-10x smaller payload. Optional scale (0.1-1.0) downscales before encoding.".into(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "format": { "type": "string", "enum": ["png", "jpeg"], "default": "png", "description": "Image format. JPEG is 5-10x smaller." },
+                    "scale": { "type": "number", "minimum": 0.1, "maximum": 1.0, "default": 1.0, "description": "Downscale factor (0.1-1.0). Lower = smaller/faster." }
+                },
+                "required": []
+            }),
+        },
+        ToolDef {
+            name: "take_screenshot_fast".into(),
+            description: "Quick screenshot for situational awareness. JPEG quality 70, half-scale. ~50-100KB vs 2-3MB full PNG. Use for quick glances during interaction.".into(),
             input_schema: serde_json::json!({
                 "type": "object", "properties": {}, "required": []
             }),
@@ -186,6 +198,51 @@ pub fn get_tool_definitions() -> Vec<ToolDef> {
                     "rows": { "type": "integer", "default": 9, "description": "Number of grid rows (must match show_grid density)" }
                 },
                 "required": ["cell"]
+            }),
+        },
+        ToolDef {
+            name: "servo_move".into(),
+            description: "Smoothly move cursor to target with position verification. Returns final position + screenshot. Coordinates in screenshot pixels.".into(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "x": { "type": "integer", "description": "Target X in screenshot pixels" },
+                    "y": { "type": "integer", "description": "Target Y in screenshot pixels" },
+                    "steps": { "type": "integer", "default": 15, "description": "Interpolation steps (5-50)" },
+                    "duration_ms": { "type": "integer", "default": 400, "description": "Movement duration in ms (100-5000)" }
+                },
+                "required": ["x", "y"]
+            }),
+        },
+        ToolDef {
+            name: "servo_click".into(),
+            description: "Servo move to target, then click. Returns final position + screenshot. Combines smooth movement + click + verification in one call.".into(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "x": { "type": "integer", "description": "Target X in screenshot pixels" },
+                    "y": { "type": "integer", "description": "Target Y in screenshot pixels" },
+                    "button": { "type": "string", "enum": ["left", "right", "double"], "default": "left" },
+                    "steps": { "type": "integer", "default": 15, "description": "Interpolation steps (5-50)" },
+                    "duration_ms": { "type": "integer", "default": 400, "description": "Movement duration in ms (100-5000)" }
+                },
+                "required": ["x", "y"]
+            }),
+        },
+        ToolDef {
+            name: "servo_drag".into(),
+            description: "Servo move to start, press, servo move to end, release. Returns screenshot after drag. Always left button.".into(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "x1": { "type": "integer", "description": "Drag start X (screenshot pixels)" },
+                    "y1": { "type": "integer", "description": "Drag start Y (screenshot pixels)" },
+                    "x2": { "type": "integer", "description": "Drag end X (screenshot pixels)" },
+                    "y2": { "type": "integer", "description": "Drag end Y (screenshot pixels)" },
+                    "steps": { "type": "integer", "default": 15, "description": "Steps per movement segment (5-50)" },
+                    "duration_ms": { "type": "integer", "default": 400, "description": "Duration per segment in ms (100-5000)" }
+                },
+                "required": ["x1", "y1", "x2", "y2"]
             }),
         },
     ]

@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { PromptBar } from "./PromptBar";
-import { StatusPill } from "./StatusPill";
 import { AnnotationLayer } from "../canvas/AnnotationLayer";
 import "../styles/hud.css";
 
@@ -34,7 +33,6 @@ export function HUD() {
   return (
     <>
       <AnnotationLayer />
-      <StatusPill />
       <PromptBar visible={promptVisible} onSubmit={handleSubmit} onClose={hidePrompt} />
     </>
   );
