@@ -35,15 +35,18 @@ pub fn capture_screen_jpeg(quality: u8, scale: f32) -> Result<(String, String), 
     let monitors = Monitor::all().map_err(|e| format!("Failed to list monitors: {}", e))?;
     let monitor = monitors.into_iter().next().ok_or("No monitor found")?;
 
-    let img = monitor.capture_image().map_err(|e| format!("Capture failed: {}", e))?;
+    let rgba_img = monitor.capture_image().map_err(|e| format!("Capture failed: {}", e))?;
+
+    // Convert RGBA to RGB (JPEG doesn't support alpha)
+    let rgb_img = image::DynamicImage::ImageRgba8(rgba_img).to_rgb8();
 
     // Downscale if scale < 1.0
     let final_img = if scale < 1.0 {
-        let new_w = (img.width() as f32 * scale) as u32;
-        let new_h = (img.height() as f32 * scale) as u32;
-        image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Triangle)
+        let new_w = (rgb_img.width() as f32 * scale) as u32;
+        let new_h = (rgb_img.height() as f32 * scale) as u32;
+        image::imageops::resize(&rgb_img, new_w, new_h, image::imageops::FilterType::Triangle)
     } else {
-        img
+        rgb_img
     };
 
     // Encode as JPEG with explicit quality
